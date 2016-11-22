@@ -2,77 +2,69 @@ package utils
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
-
-	"github.com/astaxie/beego/config"
 )
 
 type BufferPool struct {
-	mutex_                      sync.Mutex
-	busy_flag_                  []bool
-	buffer_                     []*bytes.Buffer
-	buffer_size_                int
-	buffer_pool_max_capacity_   int
-	buffer_pool_enlarge_factor_ int
-	buffer_pool_current_size_   int
+	Mutex                   sync.Mutex
+	BusyFlag                []bool
+	Buffer                  []*bytes.Buffer
+	BufferSize              int
+	BufferPoolMaxCapacity   int
+	BufferPoolEnlargeFactor int
+	BufferPoolCurrentSize   int
 }
 
 // Enlarge the buffer pool by buffer_pool_enlarge_factor
 func (this *BufferPool) enlarge() {
-	CommonLog("Buffer pool needs to be enlarged...")
+	fmt.Println("Buffer pool needs to be enlarged...")
 
 	// Have to make sure that the capacity of the BufferPool WOULD NOT LARGER
 	// than the max capacity.
-	var enlarge_factor = this.buffer_pool_enlarge_factor_
-	if this.buffer_pool_current_size_+this.buffer_pool_enlarge_factor_ >
-		this.buffer_pool_max_capacity_ {
-		enlarge_factor =
-			this.buffer_pool_max_capacity_ - this.buffer_pool_current_size_
+	var enlargeFactor = this.BufferPoolEnlargeFactor
+	if this.BufferPoolCurrentSize+this.BufferPoolEnlargeFactor >
+		this.BufferPoolMaxCapacity {
+		enlargeFactor =
+			this.BufferPoolMaxCapacity - this.BufferPoolCurrentSize
 	}
 
-	for n := 0; n < enlarge_factor; n++ {
-		this.busy_flag_ = append(this.busy_flag_, false)
-		this.buffer_ = append(
-			this.buffer_,
-			bytes.NewBuffer(make([]byte, 0, this.buffer_size_*1024)))
+	for n := 0; n < enlargeFactor; n++ {
+		this.BusyFlag = append(this.BusyFlag, false)
+		this.Buffer = append(
+			this.Buffer,
+			bytes.NewBuffer(make([]byte, 0, this.BufferSize*1024)))
 	}
 
-	this.buffer_pool_current_size_ = len(this.busy_flag_)
+	this.BufferPoolCurrentSize = len(this.BusyFlag)
 
-	CommonLog(
-		"Buffer pool enlarged and length: ",
-		this.buffer_pool_current_size_)
+	fmt.Println("Buffer pool enlarged and length: ", this.BufferPoolCurrentSize)
 }
 
-func NewBufferPool(conf config.Configer) *BufferPool {
+func NewBufferPool() *BufferPool {
 
-	var temp_pool BufferPool
+	var tempPool BufferPool
 
 	// Loading parameters
-	temp_pool.buffer_size_ = 40
-	temp_pool.buffer_pool_current_size_ = 100
-	temp_pool.buffer_pool_max_capacity_ = 2000
-	temp_pool.buffer_pool_enlarge_factor_ = 100
+	tempPool.BufferSize = 40
+	tempPool.BufferPoolCurrentSize = 100
+	tempPool.BufferPoolMaxCapacity = 2000
+	tempPool.BufferPoolEnlargeFactor = 100
 
 	// Buffer pool initialization
-	temp_pool.busy_flag_ = make([]bool, 0, temp_pool.buffer_pool_current_size_)
-	temp_pool.buffer_ = make(
-		[]*bytes.Buffer,
-		0,
-		temp_pool.buffer_pool_current_size_)
+	tempPool.BusyFlag = make([]bool, 0, tempPool.BufferPoolCurrentSize)
+	tempPool.Buffer = make([]*bytes.Buffer, 0, tempPool.BufferPoolCurrentSize)
 
-	for i := 0; i < temp_pool.buffer_pool_current_size_; i++ {
-		temp_pool.busy_flag_ = append(temp_pool.busy_flag_, false)
-		temp_pool.buffer_ = append(
-			temp_pool.buffer_,
-			bytes.NewBuffer(make([]byte, 0, temp_pool.buffer_size_*1024)))
+	for i := 0; i < tempPool.BufferPoolCurrentSize; i++ {
+		tempPool.BusyFlag = append(tempPool.BusyFlag, false)
+		tempPool.Buffer = append(
+			tempPool.Buffer,
+			bytes.NewBuffer(make([]byte, 0, tempPool.BufferSize*1024)))
 	}
 
-	CommonLog(
-		"Buffer Pool initialization finished with capacity: ",
-		len(temp_pool.busy_flag_))
+	fmt.Println("Buffer Pool initialization finished with capacity: ", len(tempPool.BusyFlag))
 
-	return &temp_pool
+	return &tempPool
 }
 
 /*
@@ -84,31 +76,31 @@ Notice:
 */
 func (this *BufferPool) Get() (*bytes.Buffer, int) {
 
-	this.mutex_.Lock()
-	defer this.mutex_.Unlock()
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
 
-	DebugLog("Buffer GET: request.")
-	for i := 0; i < this.buffer_pool_current_size_; i++ {
-		if !this.busy_flag_[i] {
-			this.busy_flag_[i] = true
-			DebugfLog("Buffer GET: NO.%d succeeded.", i)
-			return this.buffer_[i], i
+	fmt.Println("Buffer GET: request.")
+	for i := 0; i < this.BufferPoolCurrentSize; i++ {
+		if !this.BusyFlag[i] {
+			this.BusyFlag[i] = true
+			fmt.Printf("Buffer GET: NO.%d succeeded.", i)
+			return this.Buffer[i], i
 		}
 	}
 
-	if this.buffer_pool_current_size_ < this.buffer_pool_max_capacity_ {
-		temp_pointer := this.buffer_pool_current_size_
+	if this.BufferPoolCurrentSize < this.BufferPoolMaxCapacity {
+		tempPointer := this.BufferPoolCurrentSize
 		this.enlarge()
 
-		this.busy_flag_[temp_pointer] = true
-		DebugfLog("Buffer GET: NO.%d succeeded.", temp_pointer)
-		return this.buffer_[temp_pointer], temp_pointer
+		this.BusyFlag[tempPointer] = true
+		fmt.Printf("Buffer GET: NO.%d succeeded.", tempPointer)
+		return this.Buffer[tempPointer], tempPointer
 	}
 
-	NormalLog("Warning !!! Buffer pool is full!")
-	DebugLog("Buffer GET: temp buffer succeeded.")
-	return bytes.NewBuffer(make([]byte, 0, this.buffer_size_*1024)),
-		this.buffer_pool_max_capacity_ * 2
+	fmt.Println("Warning !!! Buffer pool is full!")
+	fmt.Println("Buffer GET: temp buffer succeeded.")
+	return bytes.NewBuffer(make([]byte, 0, this.BufferSize*1024)),
+		this.BufferPoolMaxCapacity * 2
 }
 
 /*
@@ -120,30 +112,30 @@ Notice:
 */
 func (this *BufferPool) Release(index int) {
 
-	this.mutex_.Lock()
-	defer this.mutex_.Unlock()
-	DebugLog("Buffer RELEASE: request.")
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
+	fmt.Println("Buffer RELEASE: request.")
 
 	// Boundary conditions
 	if index < 0 ||
-		(index >= this.buffer_pool_current_size_ &&
-			index < this.buffer_pool_max_capacity_) {
-		ErrorfLog("Buffer RELEASE: index{%d} outrange.", index)
+		(index >= this.BufferPoolCurrentSize &&
+			index < this.BufferPoolMaxCapacity) {
+		fmt.Printf("Buffer RELEASE: index{%d} outrange.", index)
 		return
-	} else if index >= this.buffer_pool_max_capacity_ {
-		NormalfLog("Buffer RELEASE: temp buffer release : %d", index)
+	} else if index >= this.BufferPoolMaxCapacity {
+		fmt.Printf("Buffer RELEASE: temp buffer release : %d", index)
 		return
 	}
 
 	// Request to release an empty buffer
-	if !this.busy_flag_[index] {
-		NormalfLog("Buffer RELEASE: buffer{%d} already free.", index)
+	if !this.BusyFlag[index] {
+		fmt.Printf("Buffer RELEASE: buffer{%d} already free.", index)
 		return
 	}
 
 	// Release
-	this.busy_flag_[index] = false
-	this.buffer_[index].Reset()
-	DebugfLog("Buffer RELEASE: NO.%d succeeded.", index)
+	this.BusyFlag[index] = false
+	this.Buffer[index].Reset()
+	fmt.Printf("Buffer RELEASE: NO.%d succeeded.", index)
 	return
 }

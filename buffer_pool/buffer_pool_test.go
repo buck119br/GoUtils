@@ -4,138 +4,124 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
-	"flag"
 	"testing"
 
-	"github.com/astaxie/beego/config"
 	"github.com/smartystreets/goconvey/convey"
 )
 
 type testUnit struct {
-	req_num_      int
-	buffer_index_ int
-	buffer_       *bytes.Buffer
-	write_length_ int
-	write_err_    error
-	md5_          [16]byte
+	reqNum      int
+	bufferIndex int
+	buffer      *bytes.Buffer
+	writeLength int
+	writeErr    error
+	md5         [16]byte
 }
 
 func TestBufferPool(t *testing.T) {
-	flag.Lookup("logtostderr").Value.Set("true")
-	// flag.Lookup("log_dir").Value.Set("./")
-	flag.Lookup("v").Value.Set("600")
-	flag.Parse()
-	// defer glog.Flush()
 
-	var chan_counter int
-	test_chan := make(chan testUnit, 30)
-	defer close(test_chan)
+	var chanCounter int
+	testChannel := make(chan testUnit, 30)
+	defer close(testChannel)
 
-	conf, err := config.NewConfig(
-		CONFIG_FILE_PROVIDER,
-		ConfDir()+"app.conf")
-	if err != nil {
-		FatalLog(err)
-	}
+	convey.Convey("Buffer Pool Test: ", t, func() {
 
-	convey.Convey("Buffer pool test: ", t, func() {
-
-		test_pool := NewBufferPool(conf)
+		testPool := NewBufferPool()
 
 		convey.Convey("Buffer pool serial test:", func() {
 
 			// For purpose of boundary condition test,
 			// have to allocate the first half at the beginning
-			for i := 0; i < test_pool.buffer_pool_max_capacity_/2; i++ {
-				test_pool.Get()
+			for i := 0; i < testPool.BufferPoolMaxCapacity/2; i++ {
+				testPool.Get()
 			}
-			test_pool.Release(-1)
-			test_pool.Release(test_pool.buffer_pool_max_capacity_ - 1)
-			for i := test_pool.buffer_pool_max_capacity_ / 2; i < test_pool.buffer_pool_max_capacity_+5; i++ {
-				test_pool.Get()
+			testPool.Release(-1)
+			testPool.Release(testPool.BufferPoolMaxCapacity - 1)
+			for i := testPool.BufferPoolMaxCapacity / 2; i < testPool.BufferPoolMaxCapacity+5; i++ {
+				testPool.Get()
 			}
-			for i := 0; i < test_pool.buffer_pool_max_capacity_+5; i++ {
-				test_pool.Release(i)
+			for i := 0; i < testPool.BufferPoolMaxCapacity+5; i++ {
+				testPool.Release(i)
 			}
-			test_pool.Release(0)
-			test_pool.Release(test_pool.buffer_pool_max_capacity_ - 1)
+			testPool.Release(0)
+			testPool.Release(testPool.BufferPoolMaxCapacity - 1)
 		})
 
 		convey.Convey("Buffer pool release test: should pass.", func() {
 
 			for i := 0; i < 10; i++ {
 				intToBytes := make([]byte, 4)
-				temp_buffer := make([]byte, 0, test_pool.buffer_size_*1024)
+				tempBuffer := make([]byte, 0, testPool.BufferSize*1024)
 				binary.BigEndian.PutUint32(intToBytes, uint32(i))
 
-				for x := 0; x < test_pool.buffer_size_*256; x++ {
-					temp_buffer = append(temp_buffer, intToBytes...)
+				for x := 0; x < testPool.BufferSize*256; x++ {
+					tempBuffer = append(tempBuffer, intToBytes...)
 				}
-				md5_temp := md5.Sum(temp_buffer)
+				md5temp := md5.Sum(tempBuffer)
 
-				buffer_, buffer_index_ := test_pool.Get()
-				buffer_.Write(temp_buffer)
+				buffer, bufferIndex := testPool.Get()
+				buffer.Write(tempBuffer)
 
-				temp_buffer_read := make([]byte, test_pool.buffer_size_*1024)
+				tempBufferRead := make([]byte, testPool.BufferSize*1024)
 
-				n, err := buffer_.Read(temp_buffer_read)
+				n, err := buffer.Read(tempBufferRead)
 				convey.So(err, convey.ShouldBeNil)
-				convey.So(n, convey.ShouldEqual, test_pool.buffer_size_*1024)
-				test_pool.Release(buffer_index_)
+				convey.So(n, convey.ShouldEqual, testPool.BufferSize*1024)
+				testPool.Release(bufferIndex)
 				convey.So(
-					md5_temp,
+					md5temp,
 					convey.ShouldEqual,
-					md5.Sum(temp_buffer_read))
+					md5.Sum(tempBufferRead))
 			}
 		})
 
 		convey.Convey("Buffer pool concurrent test: should pass.", func() {
 
-			for i := 0; i < test_pool.buffer_pool_max_capacity_; i++ {
+			for i := 0; i < testPool.BufferPoolMaxCapacity; i++ {
 				go func(count int) {
-					var send_unit testUnit
+					var sendUnit testUnit
 
 					intToBytes := make([]byte, 4)
-					temp_buffer_write := make(
+					tempBufferWrite := make(
 						[]byte,
 						0,
-						test_pool.buffer_size_*1024)
+						testPool.BufferSize*1024)
 					binary.BigEndian.PutUint32(intToBytes, uint32(count))
 
-					for x := 0; x < test_pool.buffer_size_*256; x++ {
-						temp_buffer_write = append(
-							temp_buffer_write,
+					for x := 0; x < testPool.BufferSize*256; x++ {
+						tempBufferWrite = append(
+							tempBufferWrite,
 							intToBytes...)
 					}
-					send_unit.md5_ = md5.Sum(temp_buffer_write)
-					send_unit.req_num_ = count
-					send_unit.buffer_, send_unit.buffer_index_ =
-						test_pool.Get()
-					send_unit.write_length_, send_unit.write_err_ =
-						send_unit.buffer_.Write(temp_buffer_write)
-					test_chan <- send_unit
+					sendUnit.md5 = md5.Sum(tempBufferWrite)
+					sendUnit.reqNum = count
+					sendUnit.buffer, sendUnit.bufferIndex =
+						testPool.Get()
+					sendUnit.writeLength, sendUnit.writeErr =
+						sendUnit.buffer.Write(tempBufferWrite)
+					testChannel <- sendUnit
 				}(i)
 			}
 
-			for receive_unit := range test_chan {
-				temp_buffer_read := make([]byte, test_pool.buffer_size_*1024)
+			for receiveUnit := range testChannel {
+				tempBufferRead := make([]byte, testPool.BufferSize*1024)
 
-				convey.So(receive_unit.write_err_, convey.ShouldBeNil)
+				convey.So(receiveUnit.writeErr, convey.ShouldBeNil)
 				convey.So(
-					receive_unit.write_length_,
+					receiveUnit.writeLength,
 					convey.ShouldEqual,
-					test_pool.buffer_size_*1024)
+					testPool.BufferSize*1024)
 
-				n, err := receive_unit.buffer_.Read(temp_buffer_read)
+				n, err := receiveUnit.buffer.Read(tempBufferRead)
 				convey.So(err, convey.ShouldBeNil)
-				convey.So(n, convey.ShouldEqual, test_pool.buffer_size_*1024)
+				convey.So(n, convey.ShouldEqual, testPool.BufferSize*1024)
 
-				md5_temp := md5.Sum(temp_buffer_read)
-				test_pool.Release(receive_unit.buffer_index_)
-				convey.So(md5_temp, convey.ShouldEqual, receive_unit.md5_)
+				md5temp := md5.Sum(tempBufferRead)
+				testPool.Release(receiveUnit.bufferIndex)
+				convey.So(md5temp, convey.ShouldEqual, receiveUnit.md5)
 
-				chan_counter++
-				if chan_counter == test_pool.buffer_pool_max_capacity_ {
+				chanCounter++
+				if chanCounter == testPool.BufferPoolMaxCapacity {
 					break
 				}
 			}
@@ -145,24 +131,18 @@ func TestBufferPool(t *testing.T) {
 
 // For purpose of -benchmem
 func BenchmarkBufferPool(b *testing.B) {
-	conf, err := config.NewConfig(
-		CONFIG_FILE_PROVIDER,
-		ConfDir()+"app.conf")
-	if err != nil {
-		ErrorLog(err)
-	}
-	test_pool := NewBufferPool(conf)
+	testPool := NewBufferPool()
 
 	for i := 0; i < b.N; i++ {
-		test_buffer, index := test_pool.Get()
+		testBuffer, index := testPool.Get()
 		intToBytes := make([]byte, 4)
-		temp_buffer_write := make([]byte, 0, test_pool.buffer_size_*1024)
+		tempBufferWrite := make([]byte, 0, testPool.BufferSize*1024)
 		binary.BigEndian.PutUint32(intToBytes, uint32(i))
 
-		for x := 0; x < test_pool.buffer_size_*256; x++ {
-			temp_buffer_write = append(temp_buffer_write, intToBytes...)
+		for x := 0; x < testPool.BufferSize*256; x++ {
+			tempBufferWrite = append(tempBufferWrite, intToBytes...)
 		}
-		test_buffer.Write(temp_buffer_write)
-		test_pool.Release(index)
+		testBuffer.Write(tempBufferWrite)
+		testPool.Release(index)
 	}
 }
