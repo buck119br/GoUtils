@@ -26,6 +26,7 @@ func TestBufferPool(t *testing.T) {
 
 	convey.Convey("Buffer Pool Test: ", t, func() {
 
+		Init()
 		testPool := NewBufferPool()
 
 		convey.Convey("Buffer pool serial test:", func() {
@@ -131,6 +132,7 @@ func TestBufferPool(t *testing.T) {
 
 // For purpose of -benchmem
 func BenchmarkBufferPool(b *testing.B) {
+	Init()
 	testPool := NewBufferPool()
 
 	for i := 0; i < b.N; i++ {

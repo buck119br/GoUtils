@@ -5,6 +5,36 @@ import (
 	"sync"
 )
 
+const (
+	DefaultBufferSize              = 40
+	DefaultBufferPoolInitSize      = 50
+	DefaultBufferPoolMaxCapacity   = 5000
+	DefaultBufferPoolEnlargeFactor = 50
+)
+
+var (
+	BufferSize              int
+	BufferPoolInitSize      int
+	BufferPoolMaxCapacity   int
+	BufferPoolEnlargeFactor int
+)
+
+// Be sure to call Init whether you set buffer parameters.
+func Init() {
+	if BufferSize == 0 {
+		BufferSize = DefaultBufferSize
+	}
+	if BufferPoolInitSize == 0 {
+		BufferPoolInitSize = DefaultBufferPoolInitSize
+	}
+	if BufferPoolMaxCapacity == 0 {
+		BufferPoolMaxCapacity = DefaultBufferPoolMaxCapacity
+	}
+	if BufferPoolEnlargeFactor == 0 {
+		BufferPoolEnlargeFactor = DefaultBufferPoolEnlargeFactor
+	}
+}
+
 type BufferPool struct {
 	Mutex                   sync.Mutex
 	BusyFlag                []bool
@@ -24,9 +54,7 @@ func (this *BufferPool) enlarge() {
 	}
 	for n := 0; n < enlargeFactor; n++ {
 		this.BusyFlag = append(this.BusyFlag, false)
-		this.Buffer = append(
-			this.Buffer,
-			bytes.NewBuffer(make([]byte, 0, this.BufferSize*1024)))
+		this.Buffer = append(this.Buffer, bytes.NewBuffer(make([]byte, 0, this.BufferSize*1024)))
 	}
 	this.BufferPoolCurrentSize = len(this.BusyFlag)
 }
@@ -34,18 +62,16 @@ func (this *BufferPool) enlarge() {
 func NewBufferPool() *BufferPool {
 	var tempPool BufferPool
 	// Loading parameters
-	tempPool.BufferSize = 40
-	tempPool.BufferPoolCurrentSize = 100
-	tempPool.BufferPoolMaxCapacity = 2000
-	tempPool.BufferPoolEnlargeFactor = 100
+	tempPool.BufferSize = BufferSize
+	tempPool.BufferPoolCurrentSize = BufferPoolInitSize
+	tempPool.BufferPoolMaxCapacity = BufferPoolMaxCapacity
+	tempPool.BufferPoolEnlargeFactor = BufferPoolEnlargeFactor
 	// Buffer pool initialization
 	tempPool.BusyFlag = make([]bool, 0, tempPool.BufferPoolCurrentSize)
 	tempPool.Buffer = make([]*bytes.Buffer, 0, tempPool.BufferPoolCurrentSize)
 	for i := 0; i < tempPool.BufferPoolCurrentSize; i++ {
 		tempPool.BusyFlag = append(tempPool.BusyFlag, false)
-		tempPool.Buffer = append(
-			tempPool.Buffer,
-			bytes.NewBuffer(make([]byte, 0, tempPool.BufferSize*1024)))
+		tempPool.Buffer = append(tempPool.Buffer, bytes.NewBuffer(make([]byte, 0, tempPool.BufferSize*1024)))
 	}
 	return &tempPool
 }
