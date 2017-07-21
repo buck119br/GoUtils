@@ -2,9 +2,11 @@ package buffer
 
 import (
 	"bytes"
+	"sync"
 )
 
 type BufferQueue struct {
+	mutex sync.Mutex
 	queue []*bytes.Buffer
 	len   int
 	cap   int
@@ -15,10 +17,7 @@ type BufferQueue struct {
 func NewBufferQueue(cap int) *BufferQueue {
 	bq := new(BufferQueue)
 	bq.queue = make([]*bytes.Buffer, cap)
-	bq.len = 0
 	bq.cap = cap
-	bq.head = 0
-	bq.tail = 0
 	return bq
 }
 
@@ -28,6 +27,8 @@ func (bq *BufferQueue) Head() int { return bq.head }
 func (bq *BufferQueue) Tail() int { return bq.tail }
 
 func (bq *BufferQueue) Enqueue(buffer *bytes.Buffer) bool {
+	bq.mutex.Lock()
+	defer bq.mutex.Unlock()
 	if bq.len == bq.cap {
 		return false
 	}
@@ -42,6 +43,8 @@ func (bq *BufferQueue) Enqueue(buffer *bytes.Buffer) bool {
 }
 
 func (bq *BufferQueue) Dequeue() (buffer *bytes.Buffer) {
+	bq.mutex.Lock()
+	defer bq.mutex.Unlock()
 	if bq.len == 0 {
 		return nil
 	}
