@@ -90,12 +90,6 @@ func (bp *BufferPool) enlarge() {
 	bp.poolCap += enlargeFactor
 }
 
-/*
-Get fetch a single buffer from the buffer pool and returns:
-	1. The pointer of a bytes.Buffer;
-	2. The buffer index of the buffer pool.
-Notice:	Caller has to keep the second return value for purpose of the Release(i)
-*/
 func (bp *BufferPool) Get() *Buffer {
 	bp.mutex.Lock()
 	defer bp.mutex.Unlock()
@@ -116,10 +110,6 @@ func (bp *BufferPool) Get() *Buffer {
 	return bp.newBuffer(bp.poolMaxCap * 2)
 }
 
-/*
-Release put a single buffer back into the buffer pool.
-Notice:	Entrance parameter of Release() is the SECOND return value of Get()	not the FIRST one.
-*/
 func (bp *BufferPool) Release(b *Buffer) {
 	bp.mutex.Lock()
 	defer bp.mutex.Unlock()
