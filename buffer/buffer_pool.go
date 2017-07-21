@@ -107,9 +107,10 @@ func (bp *BufferPool) Get() *Buffer {
 		}
 	}
 	if bp.poolCap < bp.poolMaxCap {
+		tempIndex := bp.poolCap
 		bp.enlarge()
-		bp.busyFlag[bp.poolLen] = true
-		return bp.buffer[bp.poolLen]
+		bp.busyFlag[tempIndex] = true
+		return bp.buffer[tempIndex]
 	}
 	bp.poolLen--
 	return bp.newBuffer(bp.poolMaxCap * 2)
