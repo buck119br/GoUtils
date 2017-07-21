@@ -1,13 +1,12 @@
 package buffer
 
 import (
-	"bytes"
 	"sync"
 )
 
 type BufferQueue struct {
 	mutex sync.Mutex
-	queue []*bytes.Buffer
+	queue []*Buffer
 	len   int
 	cap   int
 	head  int
@@ -16,7 +15,7 @@ type BufferQueue struct {
 
 func NewBufferQueue(cap int) *BufferQueue {
 	bq := new(BufferQueue)
-	bq.queue = make([]*bytes.Buffer, cap)
+	bq.queue = make([]*Buffer, cap)
 	bq.cap = cap
 	return bq
 }
@@ -26,7 +25,7 @@ func (bq *BufferQueue) Cap() int  { return bq.cap }
 func (bq *BufferQueue) Head() int { return bq.head }
 func (bq *BufferQueue) Tail() int { return bq.tail }
 
-func (bq *BufferQueue) Enqueue(buffer *bytes.Buffer) bool {
+func (bq *BufferQueue) Enqueue(buffer *Buffer) bool {
 	bq.mutex.Lock()
 	defer bq.mutex.Unlock()
 	if bq.len == bq.cap {
@@ -42,7 +41,7 @@ func (bq *BufferQueue) Enqueue(buffer *bytes.Buffer) bool {
 	return true
 }
 
-func (bq *BufferQueue) Dequeue() (buffer *bytes.Buffer) {
+func (bq *BufferQueue) Dequeue() (buffer *Buffer) {
 	bq.mutex.Lock()
 	defer bq.mutex.Unlock()
 	if bq.len == 0 {
