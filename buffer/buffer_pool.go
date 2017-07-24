@@ -76,15 +76,16 @@ func (bp *BufferPool) enlarge() {
 	if bp.poolCap+bp.poolEnlargeFactor > bp.poolMaxCap {
 		enlargeFactor = bp.poolMaxCap - bp.poolCap
 	}
-	tempFlag := make([]bool, 0, bp.poolCap+enlargeFactor)
+	// enlarge busy flag
+	tempFlag := make([]bool, bp.poolCap+enlargeFactor)
+	copy(tempFlag, bp.busyFlag)
+	bp.busyFlag = tempFlag
+	// enlarge buffer
 	tempBuffer := make([]*Buffer, 0, bp.poolCap+enlargeFactor)
-	tempFlag = append(tempFlag, bp.busyFlag...)
 	tempBuffer = append(tempBuffer, bp.buffer...)
 	for i := 0; i < enlargeFactor; i++ {
-		tempFlag = append(tempFlag, false)
 		tempBuffer = append(tempBuffer, bp.newBuffer(bp.poolCap+i))
 	}
-	bp.busyFlag = tempFlag
 	bp.buffer = tempBuffer
 	// update capacity
 	bp.poolCap += enlargeFactor
@@ -93,20 +94,19 @@ func (bp *BufferPool) enlarge() {
 func (bp *BufferPool) Get() *Buffer {
 	bp.mutex.Lock()
 	defer bp.mutex.Unlock()
-	bp.poolLen++
 	for i := 0; i < bp.poolCap; i++ {
 		if !bp.busyFlag[i] {
 			bp.busyFlag[i] = true
+			bp.poolLen++
 			return bp.buffer[i]
 		}
 	}
 	if bp.poolCap < bp.poolMaxCap {
-		tempIndex := bp.poolCap
 		bp.enlarge()
-		bp.busyFlag[tempIndex] = true
-		return bp.buffer[tempIndex]
+		bp.poolLen++
+		bp.busyFlag[bp.poolLen] = true
+		return bp.buffer[bp.poolLen]
 	}
-	bp.poolLen--
 	return bp.newBuffer(bp.poolMaxCap * 2)
 }
 
@@ -114,10 +114,7 @@ func (bp *BufferPool) Release(b *Buffer) {
 	bp.mutex.Lock()
 	defer bp.mutex.Unlock()
 	// Boundary conditions
-	if b.index < 0 ||
-		(b.index >= bp.poolCap && b.index < bp.poolMaxCap) {
-		return
-	} else if b.index >= bp.poolMaxCap {
+	if b.index < 0 || b.index >= bp.poolCap {
 		return
 	}
 	// Request to release an empty buffer
